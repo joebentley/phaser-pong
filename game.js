@@ -7,6 +7,10 @@ function preload() {
 	game.load.image('ball', 'assets/images/ball.png');
 	game.load.image('paddle', 'assets/images/paddle.png');
 
+	game.load.audio('playerPoint', 'assets/sounds/point.wav');
+	game.load.audio('enemyPoint', 'assets/sounds/enemy_point.wav');
+	game.load.audio('ballHit', 'assets/sounds/tink.wav');
+
 }
 
 
@@ -23,6 +27,10 @@ var paddleSpeed = 10;
 
 var upKey;
 var downKey;
+
+var playerPointSfx;
+var enemyPointSfx;
+var ballHitSfx;
 
 function create() {
 
@@ -69,12 +77,17 @@ function create() {
 	// Initialize scores
 	player.score = 0;
 	enemy.score = 0;
+
+	// Setup audio
+	playerPointSfx = game.add.audio('playerPoint', 1, false);
+	enemyPointSfx = game.add.audio('enemyPoint', 1, false);
+	ballHitSfx = game.add.audio('ballHit', 1, false);
 }
 
 function update() {
 	// Make the paddles and ball collide
-	game.physics.arcade.collide(player, ball, null, null, this);
-	game.physics.arcade.collide(enemy, ball, null, null, this);
+	game.physics.arcade.collide(player, ball, collide, null, this);
+	game.physics.arcade.collide(enemy, ball, collide, null, this);
 
 	if (upKey.isDown) {
 		player.y -= paddleSpeed;
@@ -90,12 +103,14 @@ function update() {
 		ball.body.position.y = game.physics.arcade.bounds.y;
 		ball.body.velocity.y *= -ball.body.bounce.y;
 		ball.body.blocked.up = true;
+		ballHitSfx.play();
 	}
 	else if (ball.body.bottom > game.physics.arcade.bounds.bottom)
 	{
 		ball.body.position.y = game.physics.arcade.bounds.bottom - ball.body.height;
 		ball.body.velocity.y *= -ball.body.bounce.y;
 		ball.body.blocked.down = true;
+		ballHitSfx.play();
 	}
 
 	// Handle scoring
@@ -103,17 +118,26 @@ function update() {
 	{
 		// Enemy scores
 		enemy.score++;
+		enemyPointSfx.play();
+
 		resetBall();
 	}
 	else if (ball.body.right > game.physics.arcade.bounds.right)
 	{
 		// Player scores
 		player.score++;
+		playerPointSfx.play();
+
 		resetBall();
 	}
 
 	playerScoreText.text = player.score;
 	enemyScoreText.text = enemy.score;	
+}
+
+// Ball hit paddle
+function collide (obj1, obj2) {
+	ballHitSfx.play();
 }
 
 // Resets the ball to centre of court
