@@ -1,5 +1,5 @@
 
-var game = new Phaser.Game(800, 600, Phaser.CANVAS, 'pong', { preload: preload, create: create, update: update});
+var game = new Phaser.Game(800, 600, Phaser.CANVAS, 'pong', { preload: preload, create: create, update: update, render: render});
 
 
 function preload() {
@@ -15,6 +15,7 @@ function preload() {
 
 
 var ball;
+var aiBall;
 
 var player;
 var enemy;
@@ -23,7 +24,7 @@ var playerScoreText;
 var enemyScoreText
 
 var scale = 8;
-var paddleSpeed = 10;
+var paddleSpeed = 500;
 
 var upKey;
 var downKey;
@@ -40,7 +41,7 @@ function create() {
 	playerScoreText = game.add.text(game.world.centerX - 300, 20, '0', style);
 	enemyScoreText = game.add.text(game.world.centerX + 250, 20, '0', style);
 
-	// Set up sprites and scaling
+	// Set up sprites
 	player = game.add.sprite(50, 200, 'paddle');
 	enemy = game.add.sprite(720, 200, 'paddle');
 
@@ -54,16 +55,33 @@ function create() {
 	ball.scale.x = scale;
 	ball.scale.y = scale;
 
+	invisibleBall = game.add.sprite(0, 0);
+
+	invisibleBall.scale.x = scale;
+	invisibleBall.scale.y = scale;
+
+	invisibleBall.active = false;
+
+
 	// Set up physics system
 	game.physics.startSystem(Phaser.Physics.ARCADE);
 
-	game.physics.enable( [ ball, player, enemy ] , Phaser.Physics.ARCADE);
+	game.physics.enable( [ ball, player, enemy, invisibleBall ] , Phaser.Physics.ARCADE);
 
 	ball.body.velocity.x = -300;
 	ball.body.velocity.y = 100;
 	ball.body.bounce.x = 1;
 	ball.body.bounce.y = 1;
 
+	invisibleBall.body.bounce.x = 1;
+	invisibleBall.body.bounce.y = 1;
+
+	// We have to set the height and width manually as there is no graphic attached to this sprite
+	invisibleBall.height = 16;
+	invisibleBall.width = 16;
+
+
+	// If the paddles aren't immovable they are bounced back by the ball
 	player.body.immovable = true;
 	player.body.collideWorldBounds = true;
 
@@ -86,18 +104,38 @@ function create() {
 
 function update() {
 	// Make the paddles and ball collide
-	game.physics.arcade.collide(player, ball, collide, null, this);
-	game.physics.arcade.collide(enemy, ball, collide, null, this);
+	game.physics.arcade.collide(player, ball, collidePlayer, null, this);
+	game.physics.arcade.collide(enemy, ball, collideEnemy, null, this);
 
+
+	// Handle keyboard input
 	if (upKey.isDown) {
-		player.y -= paddleSpeed;
+		player.body.velocity.y = -500;
 	}
 
 	if (downKey.isDown) {
-		player.y += paddleSpeed;
+		player.body.velocity.y = 500;
 	}
 
-	// Make ball bounce
+	if (!downKey.isDown && !upKey.isDown) {
+		player.body.velocity.y = 0;
+	}
+
+
+	// Make enemy follow invisible ball if active, else move towards real ball
+	if (invisibleBall.active) {
+		enemy.body.position.y = invisibleBall.body.position.y;
+	} else {
+		game.physics.arcade.moveToXY(enemy, enemy.body.position.x, ball.body.position.y, 100);
+	}
+
+
+	// Disable invisible ball if it leaves world bounds
+	if (invisibleBall.body.right > game.physics.arcade.bounds.right + 100) {
+		invisibleBall.active = false;
+	}
+
+	// Make ball bounce when hitting ceiling or floor
 	if (ball.body.position.y < game.physics.arcade.bounds.y)
 	{
 		ball.body.position.y = game.physics.arcade.bounds.y;
@@ -111,6 +149,20 @@ function update() {
 		ball.body.velocity.y *= -ball.body.bounce.y;
 		ball.body.blocked.down = true;
 		ballHitSfx.play();
+	}
+
+	// and for the invisible ball...
+	if (invisibleBall.body.position.y < game.physics.arcade.bounds.y)
+	{
+		invisibleBall.body.position.y = game.physics.arcade.bounds.y;
+		invisibleBall.body.velocity.y *= -invisibleBall.body.bounce.y;
+		invisibleBall.body.blocked.up = true;
+	}
+	else if (invisibleBall.body.bottom > game.physics.arcade.bounds.bottom)
+	{
+		invisibleBall.body.position.y = game.physics.arcade.bounds.bottom - invisibleBall.body.height;
+		invisibleBall.body.velocity.y *= -invisibleBall.body.bounce.y;
+		invisibleBall.body.blocked.down = true;
 	}
 
 	// Handle scoring
@@ -135,8 +187,23 @@ function update() {
 	enemyScoreText.text = enemy.score;	
 }
 
-// Ball hit paddle
-function collide (obj1, obj2) {
+// Called when the ball hits the paddle
+function collidePlayer (obj1, obj2) {
+	ballHitSfx.play();
+
+	// Add spin to players ball
+	ball.body.velocity.y += player.body.velocity.y / 4;
+
+	// Generate a new invisible ball that the enemy will follow, moving a little faster
+	invisibleBall.body.position.x = ball.body.position.x;
+	invisibleBall.body.position.y = ball.body.position.y;
+	invisibleBall.body.velocity.x = ball.body.velocity.x * 1.4;
+	invisibleBall.body.velocity.y = ball.body.velocity.y * 1.4;
+
+	invisibleBall.active = true;
+}
+
+function collideEnemy (obj1, obj2) {
 	ballHitSfx.play();
 }
 
@@ -148,4 +215,8 @@ function resetBall() {
 
 	ball.body.velocity.x = -300;
 	ball.body.velocity.y = 100;
+}
+
+function render() {
+    //game.debug.spriteInfo(ball, 32, 32);
 }
